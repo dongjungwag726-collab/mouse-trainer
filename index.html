@@ -81,9 +81,11 @@ input[type=text]:focus-visible{outline:2px solid var(--dot);outline-offset:1px}
     <div class="row"><button type="button" class="go" id="goPractice">연습 시작</button></div></div>
   <div class="grp"><div class="lab">타임어택</div><div class="row">
     <button type="button" data-dur="15">15초</button><button type="button" data-dur="30">30초 추천</button><button type="button" data-dur="60">1분</button></div>
+    <div class="desc">PC는 전체화면에서만 기록돼요. 모바일은 따로 구분된 랭킹에 기록돼요.</div>
+    <div class="desc" id="warn" style="color:var(--dot)"></div>
     <div class="desc" id="bestL"></div>
     <div class="row"><button type="button" class="go" id="goTA">타임어택 시작</button></div></div>
-  <div class="grp"><div class="lab" id="rankT">랭킹</div><div id="rank"></div></div>
+  <div class="grp"><div class="lab" id="rankT">랭킹</div><div class="row"><button type="button" data-bd="pc">PC</button><button type="button" data-bd="m">모바일</button></div><div id="rank"></div></div>
 </div></div>
 <div class="ov" id="setup"><div class="col">
   <div class="ttl" id="stT">원 크기 맞추기</div>
@@ -198,6 +200,10 @@ var FIREBASE_CONFIG={
     });
   });
   var ta=false,dur=30,tEnd=0,tmr=0,cdT=0,BK='mt-best2',NM={kite:'카이팅',aim:'에임',track:'트래킹'};
+  var isMobile=window.matchMedia&&matchMedia('(pointer:coarse)').matches,bdev=isMobile?'m':'pc';
+  function K(){return mode+'-'+dur+'-'+(isMobile?'m':'pc')}
+  function isFS(){return !!document.fullscreenElement||(innerWidth>=screen.width*0.98&&innerHeight>=screen.height*0.97)}
+  function voidRun(m){idle();$('warn').textContent=m}
   function bestAll(){try{return JSON.parse(localStorage.getItem(BK))||{}}catch(e){return {}}}
   function saveBest(k,v){try{var o=bestAll();o[k]=v;localStorage.setItem(BK,JSON.stringify(o))}catch(e){}}
   function calc(){
@@ -224,7 +230,8 @@ var FIREBASE_CONFIG={
   function refreshHome(){
     Array.prototype.forEach.call(document.querySelectorAll('[data-hm]'),function(o){o.setAttribute('aria-pressed',o.getAttribute('data-hm')===mode)});
     Array.prototype.forEach.call(document.querySelectorAll('[data-dur]'),function(o){o.setAttribute('aria-pressed',+o.getAttribute('data-dur')===dur)});
-    var bs=bestAll()[mode+'-'+dur];
+    Array.prototype.forEach.call(document.querySelectorAll('[data-bd]'),function(o){o.setAttribute('aria-pressed',o.getAttribute('data-bd')===bdev)});
+    var bs=bestAll()[K()];
     $('bestL').textContent=bs?('최고 기록 '+bs+'점'):'아직 기록이 없어요';
     renderBoard();
   }
@@ -236,13 +243,14 @@ var FIREBASE_CONFIG={
   }
   function startPractice(){ta=false;$('home').style.display='none';chrome();reset()}
   function startTA(){
-    clearInterval(tmr);clearTimeout(cdT);ta=true;$('home').style.display='none';$('result').style.display='none';chrome();
+    clearInterval(tmr);clearTimeout(cdT);ta=true;$('warn').textContent='';if(!isMobile&&!isFS()){var de=document.documentElement;if(de.requestFullscreen)de.requestFullscreen().catch(function(){})}$('home').style.display='none';$('result').style.display='none';chrome();
     cancelAnimationFrame(raf);t.style.display='none';b.style.display='none';c.style.display='none';hint.style.display='none';active=false;
     var k=3,cd=$('count');cd.style.display='flex';cd.textContent=k;
     (function tick(){cdT=setTimeout(function(){k--;if(k>0){cd.textContent=k;tick()}else{cd.style.display='none';begin()}},1000)})();
   }
-  function begin(){reset();$('sizeL').style.display=$('thickL').style.display=$('speedL').style.display='none';tEnd=performance.now()+dur*1000;tmr=setInterval(upd,100);upd()}
+  function begin(){if(!isMobile&&!isFS()){voidRun('전체화면으로 시작해야 기록돼요. 다시 시도해 주세요');return}reset();$('sizeL').style.display=$('thickL').style.display=$('speedL').style.display='none';tEnd=performance.now()+dur*1000;tmr=setInterval(upd,100);upd()}
   function upd(){
+    if(!isMobile&&!isFS()){voidRun('전체화면이 해제돼서 이번 기록은 무효예요');return}
     var left=Math.max(0,tEnd-performance.now());
     $('tl').textContent=(left/1000).toFixed(1);$('sc').textContent=calc().total;
     if(left<=0)finish();
@@ -250,16 +258,17 @@ var FIREBASE_CONFIG={
   function finish(){
     clearInterval(tmr);cancelAnimationFrame(raf);active=false;
     t.style.display='none';b.style.display='none';c.style.display='none';hint.style.display='none';
-    var r=calc(),key=mode+'-'+dur,old=bestAll()[key]||0,isNew=r.total>old;
+    var r=calc(),key=K(),old=bestAll()[key]||0,isNew=r.total>old;
     if(isNew)saveBest(key,r.total);
-    $('rT').textContent=NM[mode]+' · '+(dur===60?'1분':dur+'초');
+    $('rT').textContent=NM[mode]+' · '+(dur===60?'1분':dur+'초')+' · '+(isMobile?'모바일':'PC');
     $('rS').textContent=r.total;
     $('rR').innerHTML=r.rows.map(function(x){return '<div class="rw"><span>'+x[0]+'</span><b>'+x[1]+'</b></div>'}).join('');
     $('rB').textContent=isNew?'새로운 최고 기록이에요':'최고 기록 '+old+'점';
-    $('rMsg').textContent='';$('postB').disabled=false;$('rNick').style.display=nick?'none':'block';renderBoard();$('result').style.display='flex';
+    $('rMsg').textContent='';$('postB').disabled=false;$('rNick').style.display=nick?'none':'block';bdev=isMobile?'m':'pc';renderBoard();$('result').style.display='flex';
   }
   Array.prototype.forEach.call(document.querySelectorAll('[data-hm]'),function(o){o.addEventListener('click',function(){mode=o.getAttribute('data-hm');refreshHome()})});
   Array.prototype.forEach.call(document.querySelectorAll('[data-dur]'),function(o){o.addEventListener('click',function(){dur=+o.getAttribute('data-dur');refreshHome()})});
+  Array.prototype.forEach.call(document.querySelectorAll('[data-bd]'),function(o){o.addEventListener('click',function(){bdev=o.getAttribute('data-bd');refreshHome()})});
   $('goPractice').addEventListener('click',startPractice);
   function updPV(){
     var tr=mode==='track';
@@ -285,29 +294,49 @@ var FIREBASE_CONFIG={
   try{nick=localStorage.getItem('mt-nick')||''}catch(e){}
   $('nick').value=nick;
   $('nick').addEventListener('input',function(){nick=this.value.trim();try{localStorage.setItem('mt-nick',nick)}catch(e){}});
-  function renderBoard(){
-    var key=mode+'-'+dur,list=[];
+  function listFor(key){
+    var list=[];
     Object.keys(board).forEach(function(id){var d=board[id],x=d&&d.scores&&d.scores[key];if(x&&x.s>0)list.push({id:id,name:String(d.name||'이름 없음'),s:x.s})});
     list.sort(function(a,b){return b.s-a.s});
-    $('rankT').textContent='랭킹 · '+NM[mode]+' '+(dur===60?'1분':dur+'초');
+    return list;
+  }
+  function renderBoard(){
+    var key=mode+'-'+dur+'-'+bdev,list=listFor(key).slice(0,100);
+    $('rankT').textContent='랭킹 · '+NM[mode]+' '+(dur===60?'1분':dur+'초')+' · '+(bdev==='m'?'모바일':'PC');
+    function rowEl(e,i){
+      var r=document.createElement('div'),a=document.createElement('span'),v=document.createElement('b');
+      r.className='rw';a.textContent=(i+1)+'. '+e.name+(e.id===uid?' (나)':'');v.textContent=e.s;
+      if(e.id===uid)r.style.color='var(--dot)';
+      r.appendChild(a);r.appendChild(v);return r;
+    }
     ['rank','rankR'].forEach(function(id){
       var el=$(id);el.textContent='';
       var msg=!db?'랭킹 서버에 연결하지 못했어요':(!list.length?'아직 게시된 기록이 없어요':'');
       if(msg){var m=document.createElement('div');m.className='desc';m.textContent=msg;el.appendChild(m);return}
-      list.slice(0,10).forEach(function(e,i){
-        var r=document.createElement('div'),a=document.createElement('span'),v=document.createElement('b');
-        r.className='rw';a.textContent=(i+1)+'. '+e.name+(e.id===uid?' (나)':'');v.textContent=e.s;
-        if(e.id===uid)r.style.color='var(--dot)';
-        r.appendChild(a);r.appendChild(v);el.appendChild(r);
-      });
+      list.slice(0,10).forEach(function(e,i){el.appendChild(rowEl(e,i))});
+      for(var j=10;j<list.length;j++)if(list[j].id===uid){
+        var g=document.createElement('div');g.className='desc';g.textContent='⋯';el.appendChild(g);el.appendChild(rowEl(list[j],j));break;
+      }
     });
   }
+  function cleanup(){
+    if(!db||!uid||!board[uid]||!board[uid].scores)return;
+    var d=board[uid],sc=Object.assign({},d.scores),ch=false;
+    Object.keys(sc).forEach(function(k){
+      var l=listFor(k),i=-1;
+      for(var j=0;j<l.length;j++)if(l[j].id===uid){i=j;break}
+      if(i>=100){delete sc[k];ch=true}
+    });
+    if(ch&&d.name)db.collection('board').doc(uid).set({name:d.name,scores:sc}).catch(function(){});
+  }
   async function postBest(){
-    var key=mode+'-'+dur,sc=bestAll()[key]||0,name=(nick||$('rNick').value||'').trim().slice(0,12),msg=$('rMsg');
+    var key=K(),sc=bestAll()[key]||0,name=(nick||$('rNick').value||'').trim().slice(0,12),msg=$('rMsg');
     if(!sc){msg.textContent='게시할 기록이 없어요';return}
     if(!name){$('rNick').style.display='block';$('rNick').focus();msg.textContent='닉네임을 입력하고 다시 눌러 주세요';return}
     if(!db||!uid){msg.textContent='랭킹 서버에 연결되지 않았어요';return}
     nick=name;$('nick').value=name;try{localStorage.setItem('mt-nick',name)}catch(e){}
+    var others=listFor(key).filter(function(e){return e.id!==uid});
+    if(others.length>=100&&sc<=others[99].s){msg.textContent='100등 안에 들어야 게시할 수 있어요 (100등 '+others[99].s+'점)';return}
     $('postB').disabled=true;msg.textContent='게시하는 중이에요';
     try{
       var ref=db.collection('board').doc(uid),snap=await ref.get(),d=snap.exists?snap.data():{},sc2=Object.assign({},d.scores||{});
@@ -325,7 +354,7 @@ var FIREBASE_CONFIG={
       firebase.initializeApp(FIREBASE_CONFIG);
       var cred=await firebase.auth().signInAnonymously();
       uid=cred.user.uid;db=firebase.firestore();
-      db.collection('board').onSnapshot(function(sn){board={};sn.docs.forEach(function(d){board[d.id]=d.data()});renderBoard()},function(){});
+      db.collection('board').onSnapshot(function(sn){board={};sn.docs.forEach(function(d){board[d.id]=d.data()});renderBoard();cleanup()},function(){});
     }catch(e){db=null;uid=null}
     renderBoard();
   })();
